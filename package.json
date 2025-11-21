@@ -1,0 +1,11 @@
+{
+  "name": "wx-api",
+  "version": "1.0.0",
+  "description": "小程序接口：code换openid",
+  "main": "index.js",
+  "dependencies": {
+    "express": "^4.18.2",    // 搭建HTTP服务
+    "axios": "^1.6.8",       // 调用微信官方接口
+    "cors": "^2.8.5"         // 解决跨域问题
+  }
+}
