@@ -2,14 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "index.js",     // 入口文件
-      "use": "@vercel/node"  // 使用Node.js运行环境
+      "src": "index.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/(.*)",        // 匹配所有请求路径
-      "dest": "/index.js"    // 转发到入口文件处理
+      "src": "/(.*)",
+      "dest": "/index.js"
     }
   ]
 }
