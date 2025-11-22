@@ -18,38 +18,52 @@ let pool;
 // 3. 初始化数据库连接（强制校验环境变量+防本地连接）
 async function initDB() {
   try {
-    // 校验环境变量是否配置
+    // 新增：打印环境变量原始值（脱敏后）+ 长度，确认是否读取到
+    console.log("🔍 POSTGRES_URL 环境变量长度：", process.env.POSTGRES_URL?.length);
+    console.log("🔍 POSTGRES_URL 原始值（脱敏）：", process.env.POSTGRES_URL);
+
     if (!process.env.POSTGRES_URL) {
       throw new Error("POSTGRES_URL 环境变量未配置！");
     }
 
-    // 解析连接串，排查本地地址问题
-    const url = new URL(process.env.POSTGRES_URL);
-    console.log("✅ 数据库连接地址（非本地）：", url.host); // 输出真实地址，确认不是127.0.0.1
+    // 解析连接串时增加错误捕获
+    let url;
+    try {
+      url = new URL(process.env.POSTGRES_URL);
+      console.log("🔍 解析后的连接串信息：", {
+        host: url.host,
+        username: url.username,
+        database: url.pathname.slice(1),
+        port: url.port
+      });
+    } catch (parseErr) {
+      throw new Error(`连接串解析失败：${parseErr.message}，原始串：${process.env.POSTGRES_URL}`);
+    }
 
-    // 创建数据库连接池（强制指定所有参数，避免默认值）
     pool = new Pool({
       host: url.hostname,
       port: url.port || 5432,
       user: url.username,
       password: url.password,
-      database: url.pathname.slice(1), // 截取路径中的数据库名（去掉开头的/）
+      database: url.pathname.slice(1),
       ssl: {
-        rejectUnauthorized: false, // 必须开启，Vercel Postgres 强制SSL
+        rejectUnauthorized: false,
         require: true
       },
-      connectionTimeoutMillis: 10000, // 延长连接超时（适配海外数据库）
-      idleTimeoutMillis: 30000 // 空闲连接超时
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 30000
     });
 
-    // 测试数据库连接是否成功
-    const client = await pool.connect();
-    await client.query('SELECT 1'); // 执行空查询验证连接
+    // 测试连接时增加超时控制
+    const client = await Promise.race([
+      pool.connect(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("连接超时（10秒）")), 10000))
+    ]);
+    await client.query('SELECT 1');
     client.release();
-    console.log("✅ 数据库连接成功！");
+    console.log("✅ 数据库连接成功");
   } catch (err) {
-    console.error("❌ 数据库连接失败：", err.message);
-    // 连接失败时创建兜底空池，避免接口崩溃
+    console.error("❌ 数据库连接失败详情：", err.message);
     pool = {
       query: () => ({ rows: [] }),
       execute: () => [[], []]
