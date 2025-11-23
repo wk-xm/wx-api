@@ -16,41 +16,49 @@ const WX_SECRET = "052e098a2e4f5906ebcd09875f71d626";
 let pool;
 async function initDB() {
   try {
-
-    // 新增：打印环境变量原始值（脱敏），确认是否读取到
     console.log("🔍 MYSQL_URL 环境变量是否存在：", !!process.env.MYSQL_URL);
     console.log("🔍 MYSQL_URL 长度：", process.env.MYSQL_URL?.length);
     console.log("🔍 MYSQL_URL 脱敏值：", process.env.MYSQL_URL?.replace(/:.+@/, ':****@'));
 
-    // 从 Vercel 环境变量读取 TiDB MySQL 连接串
-    const mysqlUrl = process.env.MYSQL_URL; // 后续配置 MYSQL_URL 环境变量
+    const mysqlUrl = process.env.MYSQL_URL;
     if (!mysqlUrl) throw new Error("MYSQL_URL 环境变量未配置！");
 
-    // 解析 MySQL 连接串（格式：mysql://user:password@host:4000/dbname?sslmode=require）
+    // 新增：打印解析后的数据库配置
     const url = new URL(mysqlUrl);
     const config = {
       host: url.hostname,
-      port: url.port || 4000, // TiDB MySQL 默认端口 4000
+      port: url.port || 4000,
       user: url.username,
       password: url.password,
       database: url.pathname.slice(1),
-      ssl: { rejectUnauthorized: false }, // 强制 SSL
-      connectTimeout: 15000, // 15 秒超时
-      waitForConnections: true,
+      ssl: { rejectUnauthorized: false },
+      connectTimeout: 10000,
+      acquireTimeout: 10000,
+      timeout: 10000,
       connectionLimit: 5
     };
+    console.log("🔍 解析后的数据库配置：", {
+      host: config.host,
+      port: config.port,
+      user: config.user,
+      database: config.database,
+      ssl: config.ssl.rejectUnauthorized
+    });
 
-    // 创建 MySQL 连接池
+    // 新增：连接前提示
+    console.log("🔍 开始尝试连接 TiDB 新加坡节点...");
     pool = mysql.createPool(config);
-    // 测试连接
+
+    // 测试连接（强制打印结果）
     const [rows] = await pool.query('SELECT 1');
-    console.log("✅ TiDB MySQL 连接成功");
+    console.log("✅ TiDB MySQL 连接成功！测试查询结果：", rows);
   } catch (err) {
-    console.error("❌ 数据库连接失败：", err.message);
-    pool = { query: () => [[], []] }; // 兜底
+    // 新增：打印完整错误栈，定位具体失败原因
+    console.error("❌ 数据库连接失败详情：", err.message);
+    console.error("❌ 错误栈：", err.stack);
+    pool = { query: () => [[], []] };
   }
 }
-
 // 3. 修改建表语句（MySQL 语法，和原逻辑一致）
 async function initTables() {
   if (!pool || pool.query.toString().includes("() => [[], []]")) {
