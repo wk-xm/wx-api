@@ -25,46 +25,34 @@ async function initDB() {
       throw new Error("POSTGRES_URL 环境变量未配置！");
     }
 
-    let url;
-    try {
-      url = new URL(process.env.POSTGRES_URL);
-      console.log("🔍 解析后的连接串信息：", {
-        host: url.host,
-        username: url.username,
-        database: url.pathname.slice(1),
-        port: url.port
-      });
-    } catch (parseErr) {
-      throw new Error(`连接串解析失败：${parseErr.message}，原始串：${process.env.POSTGRES_URL}`);
-    }
-
+    // 直接使用完整连接串，跳过解析
     pool = new Pool({
-      host: url.hostname,
-      port: url.port || 5432,
-      user: url.username,
-      password: url.password,
-      database: url.pathname.slice(1),
-      // 关键优化：适配 Prisma Postgres 的 SSL 配置
+      connectionString: process.env.POSTGRES_URL,
       ssl: {
-        rejectUnauthorized: false, // 必须关闭证书校验（Prisma 证书特殊）
-        require: true,             // 强制 SSL（和连接串 sslmode=require 匹配）
-        minVersion: 'TLSv1.2',     // 匹配 Prisma Postgres 的 TLS 版本
-        sslmode: 'require'         // 显式指定 SSL 模式
+        rejectUnauthorized: false,
+        require: true,
+        minVersion: 'TLSv1.0', // 最低 TLS 版本，最大化兼容
+        sslmode: 'require'
       },
-      // 延长超时：适配海外数据库网络延迟
-      connectionTimeoutMillis: 15000, // 从10秒延长到15秒
-      idleTimeoutMillis: 30000
+      // 极致延长超时
+      connectionTimeoutMillis: 30000, // 30 秒超时
+      idleTimeoutMillis: 60000,
+      // 增加连接池大小
+      max: 5,
+      // 禁用 Nagle 算法（减少网络延迟）
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 30000
     });
 
-    // 简化连接测试：去掉 Promise.race 超时竞争，避免误判
     console.log("🔍 开始测试数据库连接...");
+    // 关闭查询超时限制
     const client = await pool.connect();
-    await client.query('SELECT 1'); // 执行空查询验证连接
+    client.query_timeout = 0;
+    await client.query('SELECT 1');
     client.release();
     console.log("✅ 数据库连接成功");
   } catch (err) {
     console.error("❌ 数据库连接失败详情：", err.message);
-    // 兜底空池，避免接口崩溃
     pool = {
       query: () => ({ rows: [] }),
       execute: () => [[], []]
