@@ -16,6 +16,14 @@ const WX_SECRET = "052e098a2e4f5906ebcd09875f71d626";
 let pool;
 async function initDB() {
   try {
+
+    // 新增：打印环境变量原始值（脱敏），确认是否读取到
+    console.log("🔍 MYSQL_URL 环境变量是否存在：", !!process.env.MYSQL_URL);
+    console.log("🔍 MYSQL_URL 长度：", process.env.MYSQL_URL?.length);
+    console.log("🔍 MYSQL_URL 脱敏值：", process.env.MYSQL_URL?.replace(/:.+@/, ':****@'));
+
+    const mysqlUrl = process.env.MYSQL_URL;
+    if (!mysqlUrl) throw new Error("MYSQL_URL 环境变量未配置！");
     // 从 Vercel 环境变量读取 TiDB MySQL 连接串
     const mysqlUrl = process.env.MYSQL_URL; // 后续配置 MYSQL_URL 环境变量
     if (!mysqlUrl) throw new Error("MYSQL_URL 环境变量未配置！");
