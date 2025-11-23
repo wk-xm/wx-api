@@ -1,10 +1,12 @@
-// 1. 引入核心依赖
+// 1. 引入核心依赖（添加 express 适配 Vercel 服务）
 const mysql = require('mysql2/promise');
+const express = require('express');
+const app = express();
 
 // 2. 全局连接池变量
 let pool;
 
-// 3. 数据库连接测试函数（try/catch 结构完整）
+// 3. 数据库连接测试函数
 async function testDBConnection() {
   console.log("===== 开始测试数据库连接 =====");
 
@@ -12,14 +14,13 @@ async function testDBConnection() {
   console.log("🔍 步骤1：检查 MYSQL_URL 环境变量");
   if (!process.env.MYSQL_URL) {
     console.error("❌ 失败：MYSQL_URL 环境变量未配置！");
-    process.exit(1);
+    return false;
   }
   console.log("✅ 成功：MYSQL_URL 环境变量已配置");
   console.log("🔍 MYSQL_URL 脱敏值：", process.env.MYSQL_URL.replace(/:.+@/, ':****@'));
 
-  // 步骤2：解析+连接数据库（try/catch 完整包裹）
+  // 步骤2：解析+连接数据库
   try {
-    // 解析连接串
     const url = new URL(process.env.MYSQL_URL);
     const dbConfig = {
       host: url.hostname,
@@ -47,17 +48,43 @@ async function testDBConnection() {
     console.log("✅ 成功：数据库连接正常！");
     console.log("🔍 测试结果：", rows);
 
-    // 关闭连接池
+    // 关闭连接池（测试用）
     await pool.end();
     console.log("\n✅ 步骤4：连接池已关闭");
     console.log("===== 连接测试完成 =====");
+    return true;
 
-  } catch (err) { // catch 紧跟 try 闭合大括号，无语法错位
+  } catch (err) {
     console.error("\n❌ 失败：数据库连接错误 →", err.message);
     console.error("❌ 错误详情：", err.stack.slice(0, 200));
-    process.exit(1);
+    return false;
   }
 }
 
-// 4. 执行测试函数
-testDBConnection();
+// 4. 核心：添加 API 接口（Vercel 需导出 HTTP 服务）
+// 接口1：测试数据库连接（可通过浏览器/Postman访问）
+app.get('/test-db', async (req, res) => {
+  const isConnected = await testDBConnection();
+  if (isConnected) {
+    res.json({ code: 0, msg: "数据库连接成功！" });
+  } else {
+    res.json({ code: -1, msg: "数据库连接失败！" });
+  }
+});
+
+// 接口2：默认根路径（访问根域名时返回提示）
+app.get('/', (req, res) => {
+  res.json({ code: 0, msg: "服务运行正常！访问 /test-db 测试数据库连接" });
+});
+
+// 5. 关键：导出 Vercel 所需的 HTTP 服务
+// Vercel Serverless 要求导出 app 或 handler
+module.exports = app;
+
+// 本地运行时启动服务（Vercel 会自动忽略这部分）
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`本地服务运行在 http://localhost:${PORT}`);
+  });
+}
