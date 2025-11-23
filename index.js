@@ -18,7 +18,6 @@ let pool;
 // 3. 初始化数据库连接（强制校验环境变量+防本地连接）
 async function initDB() {
   try {
-    // 新增：打印环境变量原始值（脱敏后）+ 长度，确认是否读取到
     console.log("🔍 POSTGRES_URL 环境变量长度：", process.env.POSTGRES_URL?.length);
     console.log("🔍 POSTGRES_URL 原始值（脱敏）：", process.env.POSTGRES_URL);
 
@@ -26,7 +25,6 @@ async function initDB() {
       throw new Error("POSTGRES_URL 环境变量未配置！");
     }
 
-    // 解析连接串时增加错误捕获
     let url;
     try {
       url = new URL(process.env.POSTGRES_URL);
@@ -46,24 +44,27 @@ async function initDB() {
       user: url.username,
       password: url.password,
       database: url.pathname.slice(1),
+      // 关键优化：适配 Prisma Postgres 的 SSL 配置
       ssl: {
-        rejectUnauthorized: false,
-        require: true
+        rejectUnauthorized: false, // 必须关闭证书校验（Prisma 证书特殊）
+        require: true,             // 强制 SSL（和连接串 sslmode=require 匹配）
+        minVersion: 'TLSv1.2',     // 匹配 Prisma Postgres 的 TLS 版本
+        sslmode: 'require'         // 显式指定 SSL 模式
       },
-      connectionTimeoutMillis: 10000,
+      // 延长超时：适配海外数据库网络延迟
+      connectionTimeoutMillis: 15000, // 从10秒延长到15秒
       idleTimeoutMillis: 30000
     });
 
-    // 测试连接时增加超时控制
-    const client = await Promise.race([
-      pool.connect(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("连接超时（10秒）")), 10000))
-    ]);
-    await client.query('SELECT 1');
+    // 简化连接测试：去掉 Promise.race 超时竞争，避免误判
+    console.log("🔍 开始测试数据库连接...");
+    const client = await pool.connect();
+    await client.query('SELECT 1'); // 执行空查询验证连接
     client.release();
     console.log("✅ 数据库连接成功");
   } catch (err) {
     console.error("❌ 数据库连接失败详情：", err.message);
+    // 兜底空池，避免接口崩溃
     pool = {
       query: () => ({ rows: [] }),
       execute: () => [[], []]
