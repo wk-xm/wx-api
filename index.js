@@ -22,8 +22,6 @@ async function initDB() {
     console.log("🔍 MYSQL_URL 长度：", process.env.MYSQL_URL?.length);
     console.log("🔍 MYSQL_URL 脱敏值：", process.env.MYSQL_URL?.replace(/:.+@/, ':****@'));
 
-    const mysqlUrl = process.env.MYSQL_URL;
-    if (!mysqlUrl) throw new Error("MYSQL_URL 环境变量未配置！");
     // 从 Vercel 环境变量读取 TiDB MySQL 连接串
     const mysqlUrl = process.env.MYSQL_URL; // 后续配置 MYSQL_URL 环境变量
     if (!mysqlUrl) throw new Error("MYSQL_URL 环境变量未配置！");
