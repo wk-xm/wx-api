@@ -23,7 +23,7 @@ async function initDB() {
     const mysqlUrl = process.env.MYSQL_URL;
     if (!mysqlUrl) throw new Error("MYSQL_URL 环境变量未配置！");
 
-    // 新增：打印解析后的数据库配置
+    // 解析连接串
     const url = new URL(mysqlUrl);
     const config = {
       host: url.hostname,
@@ -31,29 +31,30 @@ async function initDB() {
       user: url.username,
       password: url.password,
       database: url.pathname.slice(1),
+      // 强制开启 SSL（TiDB 必须，之前解析为 false 是错误）
       ssl: { rejectUnauthorized: false },
-      connectTimeout: 10000,
-      acquireTimeout: 10000,
-      timeout: 10000,
-      connectionLimit: 5
+      // 仅保留 mysql2 连接池有效参数
+      connectTimeout: 15000, // 唯一有效超时参数
+      connectionLimit: 5,
+      waitForConnections: true,
+      queueLimit: 0
+      // 已删除 acquireTimeout/timeout/keepAlive 等无效参数
     };
     console.log("🔍 解析后的数据库配置：", {
       host: config.host,
       port: config.port,
       user: config.user,
       database: config.database,
-      ssl: config.ssl.rejectUnauthorized
+      ssl: !!config.ssl // 确认 SSL 已开启
     });
 
-    // 新增：连接前提示
     console.log("🔍 开始尝试连接 TiDB 新加坡节点...");
     pool = mysql.createPool(config);
 
-    // 测试连接（强制打印结果）
+    // 测试连接
     const [rows] = await pool.query('SELECT 1');
     console.log("✅ TiDB MySQL 连接成功！测试查询结果：", rows);
   } catch (err) {
-    // 新增：打印完整错误栈，定位具体失败原因
     console.error("❌ 数据库连接失败详情：", err.message);
     console.error("❌ 错误栈：", err.stack);
     pool = { query: () => [[], []] };
