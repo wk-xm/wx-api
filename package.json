@@ -1,16 +1,13 @@
 {
   "name": "wx-template-proxy",
   "version": "1.0.0",
-  "description": "微信模板消息推送代理服务（Netlify 免费部署）",
+  "description": "微信模板消息推送代理服务（Netlify Functions）",
   "dependencies": {
     "express": "^4.18.2",
     "axios": "^1.6.2",
     "cors": "^2.8.5"
   },
-  "scripts": {
-    "start": "node index.js"
-  },
   "engines": {
-    "node": ">=14.x" 
+    "node": ">=14.x"
   }
 }
