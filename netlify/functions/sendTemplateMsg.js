@@ -111,7 +111,7 @@ async function sendTemplateMsg(body) {
       template_id,
       page: page || "",
       data,
-      miniprogram_state: "developer" // 测试阶段用 developer
+      miniprogram_state: "formal" // 测试阶段用 developer
     };
 
     const wxData = await httpsPost(url, postData);
