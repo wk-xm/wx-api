@@ -131,10 +131,26 @@ app.get('/health', (req, res) => {
 
 // 6. 启动服务（Netlify 自动分配端口，必须用 process.env.PORT）
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`代理服务已启动，端口：${PORT}`);
-  console.log(`服务地址：http://localhost:${PORT}`);
-});
+exports.handler = async (event, context) => {
+  // 转换 Netlify 请求为 Express 可处理的格式
+  return new Promise((resolve, reject) => {
+    const server = app.listen(0, () => {
+      const originalEnd = res.end;
+      res.end = function (body) {
+        // 构造 Netlify 所需的响应格式
+        resolve({
+          statusCode: res.statusCode,
+          headers: res.getHeaders(),
+          body: body || JSON.stringify({ code: -4, message: "无响应内容" })
+        });
+        server.close();
+        originalEnd.call(this, body);
+      };
+      // 转发请求到 Express 服务
+      app.handle(event, res);
+    });
+  });
+};
 
 // 导出 app 供 Netlify 识别
 module.exports = app;
