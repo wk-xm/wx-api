@@ -5,7 +5,7 @@ const app = express();
 
 // 1. 跨域配置（允许小程序调用）
 app.use(cors({
-  origin: "*", // 上线可改为你的小程序域名（如 https://servicewechat.com），更安全
+  origin: "*", // 上线可改为 https://servicewechat.com，更安全
   methods: ["GET", "POST"],
   allowedHeaders: ["Content-Type", "x-auth-key"]
 }));
@@ -60,7 +60,7 @@ async function getValidAccessToken() {
 /**
  * 对外接口：发送模板消息（小程序调用此接口）
  * 请求方式：POST
- * 请求地址：https://你的Netlify域名/sendTemplateMsg
+ * 请求地址：https://你的Netlify域名/.netlify/functions/sendTemplateMsg/sendTemplateMsg
  */
 app.post('/sendTemplateMsg', async (req, res) => {
   try {
@@ -93,7 +93,7 @@ app.post('/sendTemplateMsg', async (req, res) => {
         template_id: template_id, // 模板 ID
         page: page || "", // 点击跳转页面（可选）
         data: data, // 模板字段数据
-        miniprogram_state: "formal" // 上线时用 formal，测试用 developer
+        miniprogram_state: "developer" // 测试阶段用 developer（仅开发者可见），上线改 formal
       },
       {
         headers: { "Content-Type": "application/json" }
@@ -124,33 +124,51 @@ app.post('/sendTemplateMsg', async (req, res) => {
   }
 });
 
-// 5. 健康检查接口（可选，用于测试服务是否正常）
+// 5. 健康检查接口（用于测试服务是否正常）
 app.get('/health', (req, res) => {
   res.json({ code: 0, message: "代理服务运行正常" });
 });
 
-// 6. 启动服务（Netlify 自动分配端口，必须用 process.env.PORT）
-const PORT = process.env.PORT || 3000;
-exports.handler = async (event, context) => {
-  // 转换 Netlify 请求为 Express 可处理的格式
-  return new Promise((resolve, reject) => {
+// ===================== 关键修改部分 =====================
+// 1. 删除原有的 "启动服务" 代码（Netlify Functions 不需要，残留会报错）
+// const PORT = process.env.PORT || 3000; （已删除）
+// app.listen(PORT, () => { ... }) （已删除）
+
+// 2. 修正 handler 函数：补充 res 初始定义（避免 "res is not defined"）
+async function handler(event, context) { // 函数名必须是 handler（全小写）
+  // 关键：初始化 res 对象（解决 Netlify 上下文缺失导致的 res 未定义）
+  const res = {
+    statusCode: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*", // 兜底跨域头，防止中间件失效
+      "Content-Type": "application/json"
+    },
+    end: function (body) {
+      this.body = body;
+    }
+  };
+
+  return new Promise((resolve) => {
+    // 创建临时 Express 服务器处理请求（端口 0 表示自动分配）
     const server = app.listen(0, () => {
+      // 重写 res.end 方法，构造 Netlify 要求的响应格式
       const originalEnd = res.end;
       res.end = function (body) {
-        // 构造 Netlify 所需的响应格式
+        // 最终响应格式：Netlify 仅识别 statusCode、headers、body
         resolve({
           statusCode: res.statusCode,
-          headers: res.getHeaders(),
+          headers: res.headers, // 合并跨域头和其他响应头
           body: body || JSON.stringify({ code: -4, message: "无响应内容" })
         });
-        server.close();
-        originalEnd.call(this, body);
+        server.close(); // 处理完请求关闭临时服务器
+        originalEnd.call(this, body); // 执行原 Express 的 res.end
       };
-      // 转发请求到 Express 服务
+
+      // 转发 Netlify 的 event 请求到 Express 服务
       app.handle(event, res);
     });
   });
-};
+}
 
-// 导出 app 供 Netlify 识别
-module.exports = app;
+// 3. 显式导出 handler 函数（Netlify 必须识别这个导出格式）
+export { handler };
