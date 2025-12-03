@@ -11,6 +11,6 @@
     "start": "node index.js"
   },
   "engines": {
-    "node": ">=14.x" // 兼容 Netlify  Node.js 版本
+    "node": ">=14.x" 
   }
 }
